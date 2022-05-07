@@ -1,13 +1,1 @@
-# Text01
-
-第一次使用GitHub创建项目
-
-modfiy
-modfiy2
-modfiy3
-modfiy4
-modfiy5
-modfiy6
-modfiy7
-modfiy8
-modfiy9
+主要编写一些linux相关的测试程序
