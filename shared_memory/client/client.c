@@ -2,7 +2,7 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-07 21:47:49
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-08 13:23:16
+ * @LastEditTime: 2022-05-08 18:50:57
  * @FilePath: /shared_memory/client/clien.c
  * @Description: 
  */
@@ -20,7 +20,7 @@
 #endif
 
 #define TEST_PRINT_FRAM  0
-#define TEST_FILE "test01.h264"
+#define TEST_FILE "../test01.h264"
 #define TEST_WRITE_FILE "send_01.h264"
 
 
@@ -122,14 +122,18 @@ int main()
         int rest_len = data_len;
         int cur_nal_pre = 0;
         unsigned char* last_nal_start = 0;
-        unsigned char* cur_nal_start = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
+        int pos = 0;
+        pos = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
+        unsigned char* cur_nal_start = pos >= 0 ? p_data_tmp + pos: NULL;
         last_nal_start = cur_nal_start;
-        while(cur_nal_start > 0 && rest_len - cur_nal_pre > 0)
+
+        while(NULL != cur_nal_start && rest_len - cur_nal_pre > 0)
         {
             p_data_tmp = cur_nal_start + cur_nal_pre;
             rest_len -= cur_nal_pre;
 
-            cur_nal_start = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
+            pos = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
+            cur_nal_start = pos >= 0 ? p_data_tmp + pos: NULL;
             //DBG("p_data_tmp:%x cur_nal_start:%x last_nal_start:%x cur_nal_pre:%d rest_len:%d\n", p_data_tmp, cur_nal_start, last_nal_start, cur_nal_pre, rest_len);
             if(cur_nal_start > 0)
             {
@@ -138,7 +142,7 @@ int main()
                     fram_printf(last_nal_start, cur_nal_len);
                 #endif
                 file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
-                DBG("cur_nal_len:%d type:%x\n", cur_nal_len, last_nal_start[4] & 0x1f);
+                DBG("pos:%d cur_nal_len:%d type:%x\n", pos, cur_nal_len, last_nal_start[4] & 0x1f);
                 last_nal_start = cur_nal_start;
                
             }
@@ -159,6 +163,7 @@ int main()
         DBG("cur_nal_len:%d type:%x\n", cur_nal_len, last_nal_start[4] & 0x1f);
         
     }
+    
     DBG("data_len:%d\n", data_len);    
 
     return 0;

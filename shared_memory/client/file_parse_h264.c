@@ -2,18 +2,18 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-07 20:47:42
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-08 12:27:23
+ * @LastEditTime: 2022-05-08 14:07:31
  * @FilePath: /shared_memory/client/file_parse_h264.c
  * @Description: 
  */
 #include <stdio.h>
 #include "file_parse_h264.h"
 
-unsigned char *find_nal_position(const unsigned char *p_data, const int data_len, int *p_pre_len)
+int find_nal_position(const unsigned char *p_data, const int data_len, int *p_pre_len)
 {
     if(NULL == p_data || 0 == data_len || NULL == p_pre_len)
     {
-        return NULL;
+        return -1;
     }
 
     static int cur_pre_len = 2;
@@ -32,7 +32,7 @@ unsigned char *find_nal_position(const unsigned char *p_data, const int data_len
             }
 
             //printf("p_data:%x i:%d pre_len:%d\n", p_data, i, pre_len);
-            return (p_data + (i - pre_len));
+            return (i - pre_len);
         }
 
         if(p_data[i])
@@ -46,5 +46,5 @@ unsigned char *find_nal_position(const unsigned char *p_data, const int data_len
 
     }
 
-    return NULL;
+    return -2;
 }
