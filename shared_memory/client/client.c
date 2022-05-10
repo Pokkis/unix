@@ -2,7 +2,7 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-07 21:47:49
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-08 18:50:57
+ * @LastEditTime: 2022-05-08 19:09:19
  * @FilePath: /shared_memory/client/clien.c
  * @Description: 
  */
@@ -13,16 +13,26 @@
 #include <assert.h>
 #include "file_parse_h264.h"
 
+#define DEBUG             1
+
 #ifndef DBG
+#if  DEBUG
 #define DBG(fmt, args...) do { \
                  fprintf(stdout, "[%s:%5d] " fmt, (char *)__FILE__,__LINE__,## args);     \
              } while(0)
+#else
+#define DBG(fmt, args...) do { \
+             } while(0)
+#endif
 #endif
 
 #define TEST_PRINT_FRAM  0
-#define TEST_FILE "../test01.h264"
-#define TEST_WRITE_FILE "send_01.h264"
+#define TEST_WRRITE_FRAM  0
+#define TEST_FILE "./test01.h264"
 
+#if TEST_WRRITE_FRAM
+#define TEST_WRITE_FILE "send_01.h264"
+#endif
 
 static int file_read(const char *p_path, char **p_data)
 {
@@ -43,6 +53,7 @@ static int file_read(const char *p_path, char **p_data)
         fclose(pf);
         return -2;
     }
+    
     *p_data = (char *)malloc(file_size*sizeof(char));
     if(NULL == *p_data)
     {
@@ -63,6 +74,7 @@ static int file_read(const char *p_path, char **p_data)
 
 }
 
+#if TEST_WRRITE_FRAM
 static int file_write(const char *p_path, char *p_data, const int data_size)
 {
     assert(NULL != p_path);
@@ -86,6 +98,7 @@ static int file_write(const char *p_path, char *p_data, const int data_size)
     return read_len;
 
 }
+#endif
 
 #if TEST_PRINT_FRAM
 static void fram_printf(const unsigned char *p_data, const int end_count)
@@ -141,7 +154,11 @@ int main()
                 #if TEST_PRINT_FRAM
                     fram_printf(last_nal_start, cur_nal_len);
                 #endif
+
+                #if TEST_WRRITE_FRAM
                 file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
+                #endif
+
                 DBG("pos:%d cur_nal_len:%d type:%x\n", pos, cur_nal_len, last_nal_start[4] & 0x1f);
                 last_nal_start = cur_nal_start;
                
@@ -158,12 +175,14 @@ int main()
             fram_printf(last_nal_start, cur_nal_len);
         #endif
 
+        #if TEST_WRRITE_FRAM
         file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
+        #endif
 
         DBG("cur_nal_len:%d type:%x\n", cur_nal_len, last_nal_start[4] & 0x1f);
         
     }
-    
+
     DBG("data_len:%d\n", data_len);    
 
     return 0;
