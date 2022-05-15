@@ -2,12 +2,12 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-07 20:47:42
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-08 14:07:31
+ * @LastEditTime: 2022-05-15 15:38:59
  * @FilePath: /shared_memory/client/file_parse_h264.c
  * @Description: 
  */
 #include <stdio.h>
-#include "file_parse_h264.h"
+#include "../include/file_parse_h264.h"
 
 int find_nal_position(const unsigned char *p_data, const int data_len, int *p_pre_len)
 {
