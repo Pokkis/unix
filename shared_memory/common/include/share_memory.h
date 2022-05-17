@@ -2,7 +2,7 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-13 22:23:18
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-15 20:19:47
+ * @LastEditTime: 2022-05-16 23:38:22
  * @FilePath: /shared_memory/client/share_memory.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -49,6 +49,7 @@ typedef struct my_share_buf_
 {
     sys_info read_info;
     int buf_size;
+    sys_info *head;
     char *buf;
 }my_share_buf;
 

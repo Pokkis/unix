@@ -2,7 +2,7 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-13 22:22:49
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-15 20:28:03
+ * @LastEditTime: 2022-05-17 22:58:53
  * @FilePath: /shared_memory/client/share_memory.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%A
  */
@@ -12,10 +12,11 @@
 #include <sys/shm.h>  // shared memory
 #include <sys/sem.h>  // semaphore
 #include <string.h>   // memcpy
-#include "../include/share_memory.h"
+#include "share_memory.h"
 
 #define MAGIC_NUM  0x12348765
-#define DATA_MAX   4096
+//最大只能2M
+#define DATA_MAX   1024*1024
 
 int share_memory_init(my_share_buf *p_share, enum share_type rw)
 {
@@ -35,9 +36,9 @@ int share_memory_init(my_share_buf *p_share, enum share_type rw)
     p_share->buf_size = DATA_MAX;//环形数据区大小
     int share_buf_size = p_share->buf_size + sizeof(sys_info);
 
-	if((shmid = shmget(key, share_buf_size, IPC_CREAT|0666)) == -1)
+    if((shmid = shmget(key, share_buf_size, IPC_CREAT|0666)) == -1)
 	{
-		perror("Create Shared Memory Error");
+		perror("Create Shared Memory Error ");
 		exit(1);
 	}
 
@@ -49,16 +50,20 @@ int share_memory_init(my_share_buf *p_share, enum share_type rw)
 		exit(1);
 	}
 
+    p_share->head = (sys_info *)p_share->buf;
+    p_share->buf = p_share->buf + sizeof(sys_info);
     if(rw == SHARE_RWITE)
-    {
-        sys_info *p_sys_info = (sys_info *)p_share->buf;
+    { 
+        sys_info *p_sys_info = p_share->head;
         p_sys_info->curwriterpos = p_sys_info->prewriterpos = 0;
         p_sys_info->writercount = 0;
     }
-
     p_share->read_info.curwriterpos = -1;
     p_share->read_info.prewriterpos = -1;
     p_share->read_info.writercount = 0;
+    
+    //sys_info *p_sys_info = p_share->head;
+    //DBG("prewriterpos:%d curwriterpos:%d writercount:%d\n", p_sys_info->prewriterpos, p_sys_info->curwriterpos, p_sys_info->writercount);
     
     return 0;
 }
@@ -68,22 +73,22 @@ static int share_memory_data_add(my_share_buf *p_share, const char *data, const 
     assert(NULL != p_share);
     assert(NULL != data);
     
-    sys_info *p_sys_info = (sys_info *)p_share->buf;
+    sys_info *p_sys_info = p_share->head;
 
     //填充数据
     if(p_sys_info->curwriterpos + data_size > p_share->buf_size)
     {
         //拷贝数据前半部分
-        memcpy(p_share->buf + sizeof(sys_info) + p_sys_info->curwriterpos, data, p_share->buf_size - p_sys_info->curwriterpos);
+        memcpy(p_share->buf + p_sys_info->curwriterpos, data, p_share->buf_size - p_sys_info->curwriterpos);
         //拷贝数据后半部分
-        memcpy(p_share->buf + sizeof(sys_info), data + p_share->buf_size - p_sys_info->curwriterpos, data_size - (p_share->buf_size - p_sys_info->curwriterpos));
+        memcpy(p_share->buf , data + p_share->buf_size - p_sys_info->curwriterpos, data_size - (p_share->buf_size - p_sys_info->curwriterpos));
 
         p_sys_info->curwriterpos = (p_sys_info->curwriterpos + data_size) % p_share->buf_size;
     }
     else
     {
         //拷贝数据
-        memcpy(p_share->buf + sizeof(sys_info) + p_sys_info->curwriterpos, data, data_size);
+        memcpy(p_share->buf + p_sys_info->curwriterpos, data, data_size);
         p_sys_info->curwriterpos = p_sys_info->curwriterpos + data_size;
     }
 
@@ -98,7 +103,7 @@ int share_memory_write(my_share_buf *p_share, const char *data, const int data_s
     if(data_size > p_share->buf_size)
         return -1;
 
-    sys_info *p_sys_info = (sys_info *)p_share->buf;
+    sys_info *p_sys_info = p_share->head;
     p_sys_info->writercount++;
     p_sys_info->prewriterpos = p_sys_info->curwriterpos;
 
@@ -115,12 +120,10 @@ int share_memory_write(my_share_buf *p_share, const char *data, const int data_s
 
 
 //debug with write 
-#if 1
-
+#if 0
     DBG("prewriterpos:%d curwriterpos:%d writercount:%d\n", p_sys_info->prewriterpos, p_sys_info->curwriterpos, p_sys_info->writercount);
 
-    sys_head *p_sys_head = p_share->buf + sizeof(sys_info) + p_sys_info->prewriterpos;
-    DBG("p_sys_head:%x\n", p_sys_head);
+    sys_head *p_sys_head = p_share->buf + p_sys_info->prewriterpos;
     DBG("magic:%x\n", p_sys_head->magic);
     DBG("size:%d\n", p_sys_head->size);
 #endif
@@ -137,14 +140,14 @@ static int share_memory_data_read(my_share_buf *p_share, int start_pos, char *da
     if(start_pos + data_size > p_share->buf_size)
     {
         //拷贝数据前半部分
-        memcpy(data, p_share->buf + sizeof(sys_info) + start_pos, p_share->buf_size - start_pos);
+        memcpy(data, p_share->buf + start_pos, p_share->buf_size - start_pos);
         //拷贝数据后半部分
-        memcpy(data, p_share->buf + sizeof(sys_info), data_size - (p_share->buf_size - start_pos));
+        memcpy(data, p_share->buf, data_size - (p_share->buf_size - start_pos));
     }
     else
     {
         //拷贝数据
-        memcpy(data, p_share->buf + sizeof(sys_info) + start_pos, data_size);
+        memcpy(data, p_share->buf + start_pos, data_size);
     }
 
     return 0;
@@ -160,9 +163,8 @@ int share_memory_read(my_share_buf *p_share, char *data, const int data_size)
         return -1;
     }
         
-    sys_info *p_sys_info = p_share->buf;
+    sys_info *p_sys_info = p_share->head;
     //DBG("prewriterpos:%d curwriterpos:%d writercount:%d\n", p_sys_info->prewriterpos, p_sys_info->curwriterpos, p_sys_info->writercount);
-
     if(p_share->read_info.curwriterpos == -1)
     {
         p_share->read_info.curwriterpos = p_sys_info->curwriterpos;
@@ -180,8 +182,10 @@ int share_memory_read(my_share_buf *p_share, char *data, const int data_size)
     DBG("magic:%x\n", head.magic);
     DBG("size:%d\n", head.size);
 
+    int read_data = data_size > head.size ? head.size : data_size;
+
     //读取每一帧数据
-    share_memory_data_read(p_share, p_share->read_info.curwriterpos + sizeof(sys_head), data, data_size);
+    share_memory_data_read(p_share, p_share->read_info.curwriterpos + sizeof(sys_head), data, read_data);
 
     p_share->read_info.prewriterpos = p_share->read_info.curwriterpos;
     p_share->read_info.curwriterpos = (p_share->read_info.curwriterpos + sizeof(sys_head) + head.size)%p_share->buf_size;

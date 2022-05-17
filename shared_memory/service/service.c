@@ -2,7 +2,7 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-07 21:47:49
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-15 20:22:59
+ * @LastEditTime: 2022-05-16 21:49:47
  * @FilePath: /shared_memory/client/clien.c
  * @Description: 
  */
@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <assert.h>
 #include "file_parse_h264.h"
 #include "share_memory.h"
@@ -112,82 +113,108 @@ int nal_type()
     return 0;
 }
 
-void *avdata_push_thread()
-{
-
-    unsigned char *p_data = NULL;
-    int data_len = file_read(TEST_FILE, &p_data);
-    if(data_len > 0 && p_data)
-    {
-        unsigned char *p_data_tmp = p_data;
-        int cur_nal_len = 0;
-        int rest_len = data_len;
-        int cur_nal_pre = 0;
-        unsigned char* last_nal_start = 0;
-        int pos = 0;
-        pos = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
-        unsigned char* cur_nal_start = pos >= 0 ? p_data_tmp + pos: NULL;
-        last_nal_start = cur_nal_start;
-
-        while(NULL != cur_nal_start && rest_len - cur_nal_pre > 0)
-        {
-            p_data_tmp = cur_nal_start + cur_nal_pre;
-            rest_len -= cur_nal_pre;
-
-            pos = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
-            cur_nal_start = pos >= 0 ? p_data_tmp + pos: NULL;
-            //DBG("p_data_tmp:%x cur_nal_start:%x last_nal_start:%x cur_nal_pre:%d rest_len:%d\n", p_data_tmp, cur_nal_start, last_nal_start, cur_nal_pre, rest_len);
-            if(cur_nal_start)
-            {
-                cur_nal_len = cur_nal_start - last_nal_start;
-                #if TEST_PRINT_FRAM
-                    fram_printf(last_nal_start, cur_nal_len);
-                #endif
-
-                #if TEST_WRRITE_FRAM
-                file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
-                #endif
-
-                DBG("pos:%d cur_nal_len:%d type:%x\n", pos, cur_nal_len, last_nal_start[4] & 0x1f);
-                last_nal_start = cur_nal_start;
-               
-            }
-            else
-            {
-                break;
-            }
-        }
-        
-        cur_nal_len = p_data + data_len - last_nal_start;
-
-        #if TEST_PRINT_FRAM
-            fram_printf(last_nal_start, cur_nal_len);
-        #endif
-
-        #if TEST_WRRITE_FRAM
-        file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
-        #endif
-
-        DBG("cur_nal_len:%d type:%x\n", cur_nal_len, last_nal_start[4] & 0x1f);
-        
-    }
-
-    DBG("data_len:%d\n", data_len);    
-}
-
-int main()
+void *avdata_push_thread(void *arg)
 {
     my_share_buf share_buf = { 0 };
     int n_ret = share_memory_init(&share_buf, SHARE_RWITE);
     DBG("n_ret:%d\n", n_ret);
 
-    int count = 0;
     while(1)
     {
-        count++;
-        n_ret = share_memory_write(&share_buf, &count, sizeof(count));
-        DBG("n_ret:%d count:%d\n", n_ret, count);
-        sleep(1);
+        unsigned char *p_data = NULL;
+        int data_len = file_read(TEST_FILE, (char **)&p_data);
+        if(data_len > 0 && p_data)
+        {
+            unsigned char *p_data_tmp = p_data;
+            int cur_nal_len = 0;
+            int rest_len = data_len;
+            int cur_nal_pre = 0;
+            unsigned char* last_nal_start = 0;
+            int pos = 0;
+            pos = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
+            unsigned char* cur_nal_start = pos >= 0 ? p_data_tmp + pos: NULL;
+            last_nal_start = cur_nal_start;
+
+            while(NULL != cur_nal_start && rest_len - cur_nal_pre > 0)
+            {
+                p_data_tmp = cur_nal_start + cur_nal_pre;
+                rest_len -= cur_nal_pre;
+
+                pos = find_nal_position(p_data_tmp, rest_len, &cur_nal_pre);
+                cur_nal_start = pos >= 0 ? p_data_tmp + pos: NULL;
+                //DBG("p_data_tmp:%x cur_nal_start:%x last_nal_start:%x cur_nal_pre:%d rest_len:%d\n", p_data_tmp, cur_nal_start, last_nal_start, cur_nal_pre, rest_len);
+                if(cur_nal_start)
+                {
+                    cur_nal_len = cur_nal_start - last_nal_start;
+                    #if TEST_PRINT_FRAM
+                        fram_printf(last_nal_start, cur_nal_len);
+                    #endif
+
+                    #if TEST_WRRITE_FRAM
+                    file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
+                    #endif
+
+                    share_memory_write(&share_buf, (char *)last_nal_start, cur_nal_len);
+                    usleep(40*1000);
+
+                    DBG("pos:%d cur_nal_len:%d type:%x\n", pos, cur_nal_len, last_nal_start[4] & 0x1f);
+                    last_nal_start = cur_nal_start;
+                
+                }
+                else
+                {
+                    break;
+                }
+            }
+            
+            cur_nal_len = p_data + data_len - last_nal_start;
+
+            #if TEST_PRINT_FRAM
+                fram_printf(last_nal_start, cur_nal_len);
+            #endif
+
+            #if TEST_WRRITE_FRAM
+            file_write(TEST_WRITE_FILE, last_nal_start, cur_nal_len);
+            #endif
+
+            share_memory_write(&share_buf, (char *)last_nal_start, cur_nal_len);
+            usleep(40*1000);
+
+            DBG("cur_nal_len:%d type:%x\n", cur_nal_len, last_nal_start[4] & 0x1f);
+            
+        }
+
+        DBG("data_len:%d\n", data_len); 
+        if(p_data)
+            free(p_data);
+    }
+
+    return (void *)0;  
+}
+
+int main()
+{
+    // my_share_buf share_buf = { 0 };
+    // int n_ret = share_memory_init(&share_buf, SHARE_RWITE);
+    // DBG("n_ret:%d\n", n_ret);
+    
+    pthread_t video_thread;
+    int n_ret = pthread_create(&video_thread, NULL, avdata_push_thread, NULL);
+    if(n_ret != 0)
+    {
+        DBG("n_ret:%d\n", n_ret);
+        exit(0);
+    }
+
+    pthread_detach(video_thread);
+
+    //int count = 0;
+    while(1)
+    {
+        //count++;
+        //n_ret = share_memory_write(&share_buf, (char *)&count, sizeof(count));
+        //DBG("n_ret:%d count:%d\n", n_ret, count);
+        sleep(5);
     }
 
    return 0;
