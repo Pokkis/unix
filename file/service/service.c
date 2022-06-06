@@ -2,7 +2,7 @@
  * @Author: Pokkis 1004267454@qq.com
  * @Date: 2022-05-31 20:07:55
  * @LastEditors: Pokkis 1004267454@qq.com
- * @LastEditTime: 2022-05-31 23:03:30
+ * @LastEditTime: 2022-06-06 21:07:55
  * @FilePath: /c/unix/file/service.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -36,11 +36,13 @@ int main()
             fflush(fp);
             fseek(fp, 0, SEEK_SET);
         #else
+            writew_lock(fd, 0, SEEK_SET, sizeof(data_s));
             int n = write(fd, &data, sizeof(data_s));
+            un_lock(fd, 0, SEEK_SET, sizeof(data_s));
             lseek(fd, 0, SEEK_SET);
         #endif
         printf("time:%ld n:%d\n", data.time, n);
-        sleep(1);
+        usleep(100);
     }
 
     #if USE_BUFF_IO
